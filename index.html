@@ -36,4 +36,139 @@
 
     .history-card { width: 100%; max-width: 400px; background: #1e293b; border-radius: 12px; padding: 16px; flex: 1; display: flex; flex-direction: column; }
     .history-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 8px; }
-    .header-actions { display: flex; gap
+    .header-actions { display: flex; gap: 8px; }
+    .btn-action { background: transparent; border: 1px solid #475569; color: #94a3b8; padding: 6px 10px; border-radius: 6px; font-size: 0.8rem; cursor: pointer; }
+    .btn-export { border-color: #0284c7; color: #38bdf8; }
+
+    ul { list-style: none; overflow-y: auto; max-height: 50vh; }
+    li { display: flex; flex-direction: column; gap: 4px; padding: 12px 8px; border-bottom: 1px solid #334155; font-size: 0.95rem; }
+    .row-info { display: flex; justify-content: space-between; align-items: center; }
+    .tag-entrada { color: #4ade80; font-weight: 600; }
+    .tag-salida { color: #f87171; font-weight: 600; }
+    .nota-texto { font-size: 0.85rem; color: #94a3b8; background: #0f172a; padding: 6px 10px; border-radius: 6px; word-break: break-word; margin-top: 4px; }
+    .empty-msg { text-align: center; color: #64748b; padding: 20px 0; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+
+<h1>Control de Horarios</h1>
+
+<div class="input-container">
+  <input type="text" id="notaInput" placeholder="Nota u observación (opcional)..." maxlength="120" autocomplete="off">
+</div>
+
+<div class="btn-container">
+  <button class="btn-entrada" onclick="registrar('Entrada')">Entrada</button>
+  <button class="btn-salida" onclick="registrar('Salida')">Salida</button>
+</div>
+
+<div class="history-card">
+  <div class="history-header">
+    <h2>Registros</h2>
+    <div class="header-actions">
+      <button class="btn-action btn-export" onclick="exportarCSV()">Descargar CSV</button>
+      <button class="btn-action" onclick="limpiar()">Borrar todo</button>
+    </div>
+  </div>
+  <ul id="lista"></ul>
+</div>
+
+<script>
+  function obtenerRegistros() {
+    return JSON.parse(localStorage.getItem('asistencias') || '[]');
+  }
+
+  function renderizar() {
+    const lista = document.getElementById('lista');
+    const registros = obtenerRegistros();
+    lista.innerHTML = '';
+
+    if (registros.length === 0) {
+      lista.innerHTML = '<li class="empty-msg">No hay marcas registradas.</li>';
+      return;
+    }
+
+    registros.forEach(item => {
+      const li = document.createElement('li');
+      const tagClass = item.tipo === 'Entrada' ? 'tag-entrada' : 'tag-salida';
+
+      let notaHtml = '';
+      if (item.nota && item.nota.trim() !== '') {
+        notaHtml = `<div class="nota-texto">📝 ${escapeHtml(item.nota)}</div>`;
+      }
+
+      li.innerHTML = `
+          <div class="row-info">
+            <span class="${tagClass}">${item.tipo}</span>
+            <span>${item.fecha} - ${item.hora}</span>
+          </div>
+          ${notaHtml}
+        `;
+      lista.appendChild(li);
+    });
+  }
+
+  function registrar(tipo) {
+    const notaInput = document.getElementById('notaInput');
+    const nota = notaInput.value.trim();
+
+    const ahora = new Date();
+    const fecha = ahora.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const hora = ahora.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+    const registros = obtenerRegistros();
+    registros.unshift({ tipo, fecha, hora, nota });
+    localStorage.setItem('asistencias', JSON.stringify(registros));
+
+    notaInput.value = '';
+    renderizar();
+  }
+
+  function exportarCSV() {
+    const registros = obtenerRegistros();
+    if (registros.length === 0) {
+      alert('No hay registros guardados para exportar.');
+      return;
+    }
+
+    const lineas = ['Tipo,Fecha,Hora,Nota'];
+
+    registros.forEach(r => {
+      const tipo = `"${r.tipo.replace(/"/g, '""')}"`;
+      const fecha = `"${r.fecha.replace(/"/g, '""')}"`;
+      const hora = `"${r.hora.replace(/"/g, '""')}"`;
+      const nota = `"${(r.nota || '').replace(/"/g, '""')}"`;
+      lineas.push(`${tipo},${fecha},${hora},${nota}`);
+    });
+
+    const contenidoCsv = '\uFEFF' + lineas.join('\n');
+    const blob = new Blob([contenidoCsv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+
+    const enlace = document.createElement('a');
+    const fechaHoy = new Date().toISOString().slice(0, 10);
+    enlace.href = url;
+    enlace.download = `registros_horarios_${fechaHoy}.csv`;
+    document.body.appendChild(enlace);
+    enlace.click();
+    document.body.removeChild(enlace);
+    URL.revokeObjectURL(url);
+  }
+
+  function limpiar() {
+    if (confirm('¿Deseas borrar todo el historial?')) {
+      localStorage.removeItem('asistencias');
+      renderizar();
+    }
+  }
+
+  function escapeHtml(texto) {
+    const div = document.createElement('div');
+    div.textContent = texto;
+    return div.innerHTML;
+  }
+
+  renderizar();
+</script>
+</body>
+</html>
